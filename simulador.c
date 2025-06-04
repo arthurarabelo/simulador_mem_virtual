@@ -7,7 +7,7 @@
 #define MAX_PATH_LENGTH 64
 #define ADDRESS_SIZE 32
 
-int lru_access_counter; // used in lru aglorithm (global variable)
+int lru_access_counter = 0; // used in lru aglorithm (global variable)
 
 unsigned int calculateOffset(int page_size){
     unsigned int s, tmp;
@@ -69,6 +69,8 @@ int main(int argc, char *argv[]){
 
                 page_table[memory[mem_frame_to_replace].virtual_page].valid = false; // make the old page allocated invalid
                 memory[mem_frame_to_replace].virtual_page =  page; // allocate the new page
+                memory[mem_frame_to_replace].modified = (rw == 'W');
+                memory[mem_frame_to_replace].last_access_moment = ++lru_access_counter;
 
                 page_table[page].frame = mem_frame_to_replace; // make the reference to the new frame where the page is allocated
 
@@ -79,14 +81,20 @@ int main(int argc, char *argv[]){
                 memory[ff_index].allocated = true;
                 memory[ff_index].virtual_page = page;
                 memory[ff_index].modified = rw == 'W';
+                memory[ff_index].last_access_moment = ++lru_access_counter;
+
 
                 page_table[page].frame = ff_index;
             }
 
             page_table[page].valid = true;
         } else {
-            // TODO (lru): change the page access moment counter
-        }
+            // Hit: atualizar o momento de acesso e modificação
+            memory[page_table[page].frame].last_access_moment = ++lru_access_counter;
+            if (rw == 'W') {
+                memory[page_table[page].frame].modified = true;
+                }
+            }
     };
 
     printf("Algorithm: %s\n", algorithm);
