@@ -24,6 +24,8 @@ int lru_replacement(physical_frame *memory, size_t mem_size);
 
 int mfu_replacement(physical_frame *memory, size_t mem_size);
 
+int lfu_replacement(physical_frame *memory, size_t mem_size);
+
 int frame_to_be_replaced(const char *algorithm, size_t mem_size, physical_frame *memory);
 
 

@@ -51,6 +51,19 @@ int mfu_replacement(physical_frame *memory, size_t mem_size) {
     return mfu_index;
 }
 
+int lfu_replacement(physical_frame *memory, size_t mem_size) {
+    int lfu_index = -1;
+    int min_access_counter = __INT_MAX__;
+
+    for (size_t i = 0; i < mem_size; i++) {
+        if (memory[i].access_counter < min_access_counter) {
+            min_access_counter = memory[i].access_counter;
+            lfu_index = i;
+        }
+    }
+    return lfu_index;
+}
+
 int frame_to_be_replaced(const char *algorithm, size_t mem_size, physical_frame *memory) {
     if(strcmp(algorithm, "random") == 0) {
         return random_replacement(mem_size);
@@ -58,6 +71,7 @@ int frame_to_be_replaced(const char *algorithm, size_t mem_size, physical_frame 
         return lru_replacement(memory, mem_size);
     } else if(strcmp(algorithm, "mfu") == 0) {
         return mfu_replacement(memory, mem_size);
-    }
+    } else if(strcmp(algorithm, "lfu") == 0) {
+        return lfu_replacement(memory, mem_size);
     return -1;
 }
