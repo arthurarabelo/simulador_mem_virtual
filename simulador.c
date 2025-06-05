@@ -65,12 +65,14 @@ int main(int argc, char *argv[]){
             int ff_index = find_free_frame(memory, total_physical_frames);
             if(ff_index == -1){ // there is not a single free memory frame
                 // call page replacement algorithm
-                int mem_frame_to_replace = frame_to_be_replaced(algorithm, total_physical_frames);
+                int mem_frame_to_replace = frame_to_be_replaced(algorithm, total_physical_frames, memory);
 
                 page_table[memory[mem_frame_to_replace].virtual_page].valid = false; // make the old page allocated invalid
                 memory[mem_frame_to_replace].virtual_page =  page; // allocate the new page
                 memory[mem_frame_to_replace].modified = (rw == 'W');
                 memory[mem_frame_to_replace].last_access_moment = ++lru_access_counter;
+                memory[mem_frame_to_replace].access_counter = 1;  // primeira vez
+
 
                 page_table[page].frame = mem_frame_to_replace; // make the reference to the new frame where the page is allocated
 
@@ -82,6 +84,8 @@ int main(int argc, char *argv[]){
                 memory[ff_index].virtual_page = page;
                 memory[ff_index].modified = rw == 'W';
                 memory[ff_index].last_access_moment = ++lru_access_counter;
+                memory[ff_index].access_counter = 1; // primeira vez
+
 
 
                 page_table[page].frame = ff_index;
@@ -91,6 +95,7 @@ int main(int argc, char *argv[]){
         } else {
             // Hit: atualizar o momento de acesso e modificação
             memory[page_table[page].frame].last_access_moment = ++lru_access_counter;
+            memory[page_table[page].frame].access_counter++;
             if (rw == 'W') {
                 memory[page_table[page].frame].modified = true;
                 }
