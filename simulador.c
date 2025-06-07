@@ -5,31 +5,8 @@
 
 #define LOGS "logs/"
 #define MAX_PATH_LENGTH 64
-#define ADDRESS_SIZE 32
 
 int access_counter = 0; // used in lru aglorithm (global variable)
-
-void set_tables_offset(tableType type, uint32_t offset,  uint32_t *outer_table_offset, uint32_t *second_inner_table_offset, uint32_t *third_inner_table_offset) {
-    switch (type) {
-        case DENSE_PAGE_TABLE:
-            *second_inner_table_offset = 0;
-            *third_inner_table_offset = 0;
-            *outer_table_offset = ADDRESS_SIZE - offset;
-            break;
-        case TWO_LEVEL:
-            *third_inner_table_offset = 0;
-            *second_inner_table_offset = (ADDRESS_SIZE - offset) / 2;
-            *outer_table_offset = (ADDRESS_SIZE - offset) - *second_inner_table_offset;
-            break;
-        case THREE_LEVEL:
-            *third_inner_table_offset = (ADDRESS_SIZE - offset) / 3;
-            *second_inner_table_offset = (ADDRESS_SIZE - offset) / 3;
-            *outer_table_offset = (ADDRESS_SIZE - offset) - *second_inner_table_offset - *third_inner_table_offset;
-            break;
-        case INVERTED:
-            break;
-    }
-}
 
 int main(int argc, char *argv[]) {
     if (argc != 6) {
@@ -37,27 +14,31 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // arguments
     char *algorithm = argv[1];
     char *filename = argv[2];
     unsigned int page_size = atoi(argv[3]);
     unsigned int mem_size = atoi(argv[4]);
     int table_type = atoi(argv[5]);
-    unsigned int page_faults = 0;
-    unsigned int dirty_pages = 0;
 
+    // variables to be used all over the program
+    unsigned int dirty_pages = 0;
+    unsigned int page_faults = 0;
     uint32_t offset = calculateOffset(page_size << 10);
     uint32_t second_inner_table_offset, third_inner_table_offset, outer_table_offset;
+    int32_t second_inner_page_addr, third_inner_page_addr, outer_page_addr;
+    unsigned int total_physical_frames = mem_size / page_size;
+    unsigned int number_of_pages;
+
     set_tables_offset(table_type, offset, &outer_table_offset, &second_inner_table_offset, &third_inner_table_offset);
 
-    unsigned int total_physical_frames = mem_size / page_size;
-
-    unsigned int number_of_pages;
     if(table_type == INVERTED){
         number_of_pages = total_physical_frames;
     } else {
         number_of_pages = pow(2, outer_table_offset);
     }
 
+    // initialize page table and memory
     page_table* page_table = init_page_table(number_of_pages, table_type);
     physical_frame *memory = init_memory(total_physical_frames);
 
@@ -71,21 +52,20 @@ int main(int argc, char *argv[]) {
     char filepath[MAX_PATH_LENGTH];
     snprintf(filepath, sizeof(filepath), "%s%s", LOGS, filename);
 
-    uint32_t addr, page;
-    int32_t second_inner_page_addr, third_inner_page_addr, outer_page_addr;
-    int mem_access = 0;
+    uint32_t addr;
     char rw;
     FILE *file = fopen(filepath, "r");
+    int mem_access = 0;
 
     while (fscanf(file, "%x %c", &addr, &rw) != EOF) {
         mem_access++;
-        page = addr >> offset;
 
+        /* ============= Set each page address according to the table type ============= */
         switch (table_type) {
             case DENSE_PAGE_TABLE:
                 third_inner_page_addr = -1;
                 second_inner_page_addr = -1;
-                outer_page_addr = page;
+                outer_page_addr = addr >> offset;
                 break;
             case TWO_LEVEL:
                 third_inner_page_addr = -1;
@@ -100,16 +80,18 @@ int main(int argc, char *argv[]) {
             case INVERTED:
                 third_inner_page_addr = -1;
                 second_inner_page_addr = -1;
-                outer_page_addr = page;
+                outer_page_addr = addr >> offset;
                 break;
         }
+        /* ============================================================================= */
 
         if(table_type == INVERTED){
-            inverted_page_table* table_ptr = (inverted_page_table*) page_table->table;
-            inverted_page_table_block* block_ptr = NULL;
+            inverted_page_table* table_ptr = (inverted_page_table*) page_table->table; // instantiate the table to its correct type
+            inverted_page_table_block* block_ptr = NULL; // this variable will keep the associated entry
             int free_block_index = -1;
             bool page_found = false;
 
+            // searches for the page or for a free block
             for (size_t i = 0; i < page_table->table_size; i++) {
                 if(table_ptr->data[i].page == outer_page_addr){
                     block_ptr = &table_ptr->data[i];
@@ -122,7 +104,7 @@ int main(int argc, char *argv[]) {
             }
 
             if(page_found){ // page is in memory
-                // Hit: update access moment and modified bit
+                // Hit: update access moment, modified bit & access counter
                 (*block_ptr).last_access_moment = ++access_counter;
                 (*block_ptr).access_counter++;
                 if(rw == 'W'){
@@ -131,6 +113,7 @@ int main(int argc, char *argv[]) {
             } else if(!page_found && free_block_index != -1){ // page was not found but there is a free block
                 page_faults++;
 
+                // change the page associated to the block and its other attributes
                 table_ptr->data[free_block_index].page = outer_page_addr;
                 table_ptr->data[free_block_index].modified = rw == 'W';
                 (*block_ptr).last_access_moment = ++access_counter;
@@ -143,6 +126,8 @@ int main(int argc, char *argv[]) {
                     dirty_pages++;
                 }
                 table_ptr->data[index_to_replace].page = outer_page_addr; // replace the page
+
+                // update the block attributes
                 table_ptr->data[index_to_replace].last_access_moment = ++access_counter;
                 table_ptr->data[index_to_replace].access_counter = 1;
                 table_ptr->data[index_to_replace].modified = rw == 'W';
@@ -157,32 +142,39 @@ int main(int argc, char *argv[]) {
                 if (ff_index == -1) { // there is not a single free memory frame
 
                     // call page replacement algorithm
-                    int mem_frame_to_replace = frame_to_be_replaced(algorithm, memory, total_physical_frames);
+                    unsigned int mem_frame_to_replace = frame_to_be_replaced(algorithm, memory, total_physical_frames);
 
                     if (memory[mem_frame_to_replace].modified) { // page was modified and need to be written on the disk
                         dirty_pages++;
                     }
 
                     memory[mem_frame_to_replace].virtual_page->valid = false; // make the old page allocated invalid
-                    memory[mem_frame_to_replace].virtual_page->frame = -1;
+                    memory[mem_frame_to_replace].virtual_page->frame = -1; // make the frame reference to the old page allocated invalid
                     memory[mem_frame_to_replace].virtual_page = block; // allocate the new page
+
+                    // update the frame attributes
                     memory[mem_frame_to_replace].modified = (rw == 'W');
                     memory[mem_frame_to_replace].last_access_moment = ++access_counter;
                     memory[mem_frame_to_replace].access_counter = 1;
 
                     (*block).frame = mem_frame_to_replace; // make the reference to the new frame where the page is allocated
                 } else {
+
+                    // update the frame attributes
                     memory[ff_index].allocated = true;
                     memory[ff_index].virtual_page = block;
                     memory[ff_index].modified = rw == 'W';
                     memory[ff_index].last_access_moment = ++access_counter;
                     memory[ff_index].access_counter = 1;
+
+                    // update the block frame reference
                     (*block).frame = ff_index;
                 }
 
+                // block was brought into memory
                 (*block).valid = true;
             } else {
-                // Hit: update access moment and modified bit
+                // hit: update access moment, modified bit & number of accesses
                 memory[(*block).frame].last_access_moment = ++access_counter;
                 memory[(*block).frame].access_counter++;
                 if(rw == 'W'){
@@ -200,6 +192,7 @@ int main(int argc, char *argv[]) {
     printf("Page faults: %d\n", page_faults);
     printf("Dirty pages: %d\n", dirty_pages);
 
+    // free allocated memory
     fclose(file);
     free_page_table(page_table, table_type);
     free(memory);

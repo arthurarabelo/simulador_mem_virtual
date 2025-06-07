@@ -1,6 +1,8 @@
 #ifndef PAGE_H
 #define PAGE_H
 
+#define ADDRESS_SIZE 32
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -9,7 +11,7 @@
 typedef enum { DENSE_PAGE_TABLE, TWO_LEVEL, THREE_LEVEL, INVERTED } tableType;
 
 typedef struct {
-    void* table;
+    void* table; // void pointer can have any table type instantiated to it
     tableType type;
     unsigned int table_size;
 } page_table;
@@ -29,6 +31,7 @@ typedef struct {
     page_table *inner_table;
 } three_level_page_table_block;
 
+// inverted page table simulates the physical memory
 typedef struct {
     int frame;
     bool modified;
@@ -55,7 +58,7 @@ typedef struct {
 
 typedef struct {
     inverted_page_table_block* data;
-    const char *algorithm;
+    const char *algorithm; // algorithm to replace pages when the table is full
 } inverted_page_table;
 
 /* ===================================== */
@@ -81,6 +84,8 @@ void free_two_level_page_table(page_table* table);
 void free_three_level_page_table(page_table* table);
 
 void free_inverted_page_table(page_table* table);
+
+void set_tables_offset(tableType type, uint32_t offset,  uint32_t *outer_table_offset, uint32_t *second_inner_table_offset, uint32_t *third_inner_table_offset);
 
 page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t second_inner_page_addr, int32_t third_inner_page_addr);
 

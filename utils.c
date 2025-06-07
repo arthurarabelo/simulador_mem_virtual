@@ -1,5 +1,6 @@
 #include "utils.h"
 
+// calcula o offset da página
 uint32_t calculateOffset(int page_size) {
     uint32_t s, tmp;
     tmp = page_size;
@@ -21,7 +22,7 @@ int count_bits_unsigned(uint32_t num) {
     return bits;
 }
 
-// Função para criar máscara de N bits
+// Função para criar máscara de N bits: importante para calcular o offset das tabelas hierárquicas
 uint32_t make_mask(int bits) {
     return (1U << bits) - 1;
 }

@@ -1,5 +1,6 @@
 #include "Memory.h"
 
+// initialize memory and each frame attributes
 physical_frame* init_memory(unsigned int total_physical_frames) {
     physical_frame *memory = (physical_frame*) malloc(total_physical_frames * sizeof(physical_frame));
     for (size_t i = 0; i < total_physical_frames; i++) {
@@ -12,6 +13,7 @@ physical_frame* init_memory(unsigned int total_physical_frames) {
     return memory;
 }
 
+// searches for a frame not yet allocated
 int find_free_frame(physical_frame *memory, size_t size){
     for (size_t i = 0; i < size; i++) {
         if(memory[i].allocated == false){
@@ -21,7 +23,8 @@ int find_free_frame(physical_frame *memory, size_t size){
     return -1;
 }
 
-int frame_to_be_replaced(const char *algorithm, physical_frame *memory, size_t mem_size){
+// intermediary function that calls the specific replacement algorithms
+unsigned int frame_to_be_replaced(const char *algorithm, physical_frame *memory, size_t mem_size){
     if(strcmp(algorithm, "random") == 0) {
         return random_replacement(mem_size);
     } else if(strcmp(algorithm, "lru") == 0) {
@@ -34,12 +37,13 @@ int frame_to_be_replaced(const char *algorithm, physical_frame *memory, size_t m
     return -1;
 }
 
-int random_replacement(size_t mem_size){
+// generates a random frame index between zero and memory size (number of pages)
+unsigned int random_replacement(size_t mem_size){
     return random() % mem_size;
 }
 
-
-int lru_replacement(physical_frame *memory, size_t mem_size) {
+// returns the index of the frame with the lowest last_access_moment value
+unsigned int lru_replacement(physical_frame *memory, size_t mem_size) {
     int lru_index = -1;
     int min_access_moment = __INT_MAX__;
 
@@ -52,7 +56,8 @@ int lru_replacement(physical_frame *memory, size_t mem_size) {
     return lru_index;
 }
 
-int mfu_replacement(physical_frame *memory, size_t mem_size) {
+// returns the index of the frame with the highest access_counter value
+unsigned int mfu_replacement(physical_frame *memory, size_t mem_size) {
     int mfu_index = -1;
     int max_access_counter = -1;
 
@@ -65,7 +70,8 @@ int mfu_replacement(physical_frame *memory, size_t mem_size) {
     return mfu_index;
 }
 
-int lfu_replacement(physical_frame *memory, size_t mem_size) {
+// returns the index of the frame with the lowest access_counter value
+unsigned int lfu_replacement(physical_frame *memory, size_t mem_size) {
     int lfu_index = -1;
     int min_access_counter = __INT_MAX__;
 
