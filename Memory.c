@@ -3,7 +3,7 @@
 physical_frame* init_memory(unsigned int total_physical_frames) {
     physical_frame *memory = (physical_frame*) malloc(total_physical_frames * sizeof(physical_frame));
     for (size_t i = 0; i < total_physical_frames; i++) {
-        memory[i].virtual_page = -1;
+        memory[i].virtual_page = NULL;
         memory[i].modified = false;
         memory[i].allocated = false;
         memory[i].last_access_moment = 0;
@@ -21,9 +21,23 @@ int find_free_frame(physical_frame *memory, size_t size){
     return -1;
 }
 
+int frame_to_be_replaced(const char *algorithm, physical_frame *memory, size_t mem_size){
+    if(strcmp(algorithm, "random") == 0) {
+        return random_replacement(mem_size);
+    } else if(strcmp(algorithm, "lru") == 0) {
+        return lru_replacement(memory, mem_size);
+    } else if(strcmp(algorithm, "mfu") == 0) {
+        return mfu_replacement(memory, mem_size);
+    } else if(strcmp(algorithm, "lfu") == 0) {
+        return lfu_replacement(memory, mem_size);
+    }
+    return -1;
+}
+
 int random_replacement(size_t mem_size){
     return random() % mem_size;
 }
+
 
 int lru_replacement(physical_frame *memory, size_t mem_size) {
     int lru_index = -1;
@@ -62,16 +76,4 @@ int lfu_replacement(physical_frame *memory, size_t mem_size) {
         }
     }
     return lfu_index;
-}
-
-int frame_to_be_replaced(const char *algorithm, size_t mem_size, physical_frame *memory) {
-    if(strcmp(algorithm, "random") == 0) {
-        return random_replacement(mem_size);
-    } else if(strcmp(algorithm, "lru") == 0) {
-        return lru_replacement(memory, mem_size);
-    } else if(strcmp(algorithm, "mfu") == 0) {
-        return mfu_replacement(memory, mem_size);
-    } else if(strcmp(algorithm, "lfu") == 0) {
-        return lfu_replacement(memory, mem_size);
-    return -1;
 }
