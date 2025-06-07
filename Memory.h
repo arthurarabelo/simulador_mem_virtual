@@ -11,7 +11,7 @@ typedef struct {
     bool allocated; // true if it is not a free-frame
     int last_access_moment; // use in lru
     int access_counter;      // use in MFU
-    page_table_block *virtual_page;
+    page_table_block *virtual_page; 
 } physical_frame;
 
 physical_frame* init_memory(unsigned int total_physical_frames);
