@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
                 table_ptr->data[index_to_replace].modified = rw == 'W';
             }
         } else {
-            page_table_block* block = get_page(page_table, outer_page_addr, second_inner_page_addr, third_inner_page_addr);
+            page_table_block* block = get_page(page_table, outer_page_addr, second_inner_page_addr, third_inner_page_addr, second_inner_table_offset, third_inner_table_offset);
 
             if (!(*block).valid) { // page was not yet brought to memory
                 page_faults++;

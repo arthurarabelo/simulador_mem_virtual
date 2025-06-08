@@ -1,5 +1,4 @@
 #include "PageTable.h"
-#include "utils.h"
 
 // initialize page table
 page_table* init_page_table(unsigned int number_of_pages, tableType type){
@@ -140,7 +139,9 @@ void free_inverted_page_table(page_table* table){
 }
 
 // this function is reponsible for returning the block itself associated with the address
-page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t second_inner_page_addr, int32_t third_inner_page_addr){
+page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t second_inner_page_addr, int32_t third_inner_page_addr,
+                           uint32_t second_inner_table_offset, uint32_t third_inner_table_offset){
+
     switch (table->type) {
         // in dense tables, only the outer table address is considered, since there is only one table
         case DENSE_PAGE_TABLE: {
@@ -154,7 +155,7 @@ page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t s
 
             // checks if the inner table is allocated already; if not, initialize it
             if(outer_table->data[outer_page_addr].inner_table == NULL){
-                outer_table->data[outer_page_addr].inner_table = init_page_table(pow(2, count_bits_unsigned(second_inner_page_addr)), DENSE_PAGE_TABLE);
+                outer_table->data[outer_page_addr].inner_table = init_page_table(pow(2, second_inner_table_offset), DENSE_PAGE_TABLE);
             }
             dense_table_ptr = (dense_page_table*) outer_table->data[outer_page_addr].inner_table->table;
             return &dense_table_ptr->data[second_inner_page_addr];
@@ -167,11 +168,11 @@ page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t s
 
             // checks if the second inner table is allocated already; if not, initialize it
             if(outer_table->data[outer_page_addr].inner_table == NULL){
-                outer_table->data[outer_page_addr].inner_table = init_page_table(pow(2, count_bits_unsigned(second_inner_page_addr)), TWO_LEVEL);
+                outer_table->data[outer_page_addr].inner_table = init_page_table(pow(2, second_inner_table_offset), TWO_LEVEL);
                 second_inner_table = (two_level_page_table*) outer_table->data[outer_page_addr].inner_table->table;
 
                 // also initialize the third inner page, since if the second isn't, the third also is not
-                second_inner_table->data[second_inner_page_addr].inner_table = init_page_table(pow(2,count_bits_unsigned(third_inner_page_addr)), DENSE_PAGE_TABLE);
+                second_inner_table->data[second_inner_page_addr].inner_table = init_page_table(pow(2, third_inner_table_offset), DENSE_PAGE_TABLE);
                 dense_table_ptr = (dense_page_table*) second_inner_table->data[second_inner_page_addr].inner_table->table;
             }
 
@@ -179,7 +180,7 @@ page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t s
 
             // checks if the third inner table is allocated already; if not, initialize it
             if(second_inner_table->data[second_inner_page_addr].inner_table == NULL){
-                second_inner_table->data[second_inner_page_addr].inner_table = init_page_table(pow(2,count_bits_unsigned(third_inner_page_addr)), DENSE_PAGE_TABLE);
+                second_inner_table->data[second_inner_page_addr].inner_table = init_page_table(pow(2, third_inner_table_offset), DENSE_PAGE_TABLE);
             }
 
             dense_table_ptr = (dense_page_table*) second_inner_table->data[second_inner_page_addr].inner_table->table;

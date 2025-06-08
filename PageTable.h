@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 typedef enum { DENSE_PAGE_TABLE, TWO_LEVEL, THREE_LEVEL, INVERTED } tableType;
 
@@ -65,17 +66,20 @@ typedef struct {
 
 /* ============ FUNCTIONS ============ */
 
-page_table* init_page_table(unsigned int number_of_pages, tableType type);
+page_table* init_page_table(unsigned int outer_table_offset, tableType type);
+
+dense_page_table* init_dense_page_table(unsigned int outer_table_offset);
+
+two_level_page_table* init_two_level_page_table(unsigned int outer_table_offset);
+
+three_level_page_table* init_three_level_page_table(unsigned int outer_table_offset);
+
+inverted_page_table* init_inverted_page_table(unsigned int outer_table_offset);
+
+page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t second_inner_page_addr, int32_t third_inner_page_addr,
+                           uint32_t second_inner_table_offset, uint32_t third_inner_table_offset);
 
 void free_page_table(page_table* table, tableType type);
-
-dense_page_table* init_dense_page_table(unsigned int number_of_pages);
-
-two_level_page_table* init_two_level_page_table(unsigned int number_of_pages);
-
-three_level_page_table* init_three_level_page_table(unsigned int number_of_pages);
-
-inverted_page_table* init_inverted_page_table(unsigned int number_of_pages);
 
 void free_dense_page_table(page_table* table);
 
@@ -86,8 +90,6 @@ void free_three_level_page_table(page_table* table);
 void free_inverted_page_table(page_table* table);
 
 void set_tables_offset(tableType type, uint32_t offset,  uint32_t *outer_table_offset, uint32_t *second_inner_table_offset, uint32_t *third_inner_table_offset);
-
-page_table_block* get_page(page_table* table, int32_t outer_page_addr, int32_t second_inner_page_addr, int32_t third_inner_page_addr);
 
 int replace_inverted_page_table_entry(const char *algorithm, inverted_page_table *table, size_t table_size);
 

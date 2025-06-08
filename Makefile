@@ -10,7 +10,7 @@ simulador.o: simulador.c PageTable.h Memory.h utils.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 PageTable.o: PageTable.c PageTable.h
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@ -g
 
 Memory.o: Memory.c Memory.h
 	$(CC) $(CFLAGS) -c $< -o $@
