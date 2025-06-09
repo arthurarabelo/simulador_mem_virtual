@@ -59,7 +59,6 @@ typedef struct {
 
 typedef struct {
     inverted_page_table_block* data;
-    const char *algorithm; // algorithm to replace pages when the table is full
 } inverted_page_table;
 
 /* ===================================== */

@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
     int mem_access = 0;
 
     while (fscanf(file, "%x %c", &addr, &rw) != EOF) {
-        mem_access++;
+        // mem_access++;
 
         /* ============= Set each page address according to the table type ============= */
         switch (table_type) {
@@ -66,21 +66,25 @@ int main(int argc, char *argv[]) {
                 third_inner_page_addr = -1;
                 second_inner_page_addr = -1;
                 outer_page_addr = addr >> offset;
+                mem_access++;
                 break;
             case TWO_LEVEL:
                 third_inner_page_addr = -1;
                 second_inner_page_addr = (addr >> offset) & make_mask(second_inner_table_offset);
                 outer_page_addr = (addr >> (offset + second_inner_table_offset)) & make_mask(outer_table_offset);
+                mem_access += 2;
                 break;
             case THREE_LEVEL:
                 third_inner_page_addr = (addr >> offset) & make_mask(third_inner_table_offset);
                 second_inner_page_addr = (addr >> (offset + third_inner_table_offset)) & make_mask(second_inner_table_offset);
                 outer_page_addr = (addr >> (offset + second_inner_table_offset + third_inner_table_offset)) & make_mask(outer_table_offset);
+                mem_access += 3;
                 break;
             case INVERTED:
                 third_inner_page_addr = -1;
                 second_inner_page_addr = -1;
                 outer_page_addr = addr >> offset;
+                mem_access++;
                 break;
         }
         /* ============================================================================= */
@@ -110,18 +114,32 @@ int main(int argc, char *argv[]) {
                 if(rw == 'W'){
                     (*block_ptr).modified = true;
                 }
+
+                // update the frame attributes
+                memory[(*block_ptr).frame].last_access_moment = ++access_counter;
+                memory[(*block_ptr).frame].access_counter++;
+                if(rw == 'W'){
+                    memory[(*block_ptr).frame].modified = true;
+                }
             } else if(!page_found && free_block_index != -1){ // page was not found but there is a free block
                 page_faults++;
+                mem_access++;
 
                 // change the page associated to the block and its other attributes
                 table_ptr->data[free_block_index].page = outer_page_addr;
                 table_ptr->data[free_block_index].modified = rw == 'W';
                 (*block_ptr).last_access_moment = ++access_counter;
                 (*block_ptr).access_counter = 1;
+                (*block_ptr).frame = free_block_index;
+
+                // update the frame attributes
+                memory[free_block_index].modified = rw == 'W';
+                memory[free_block_index].last_access_moment = ++access_counter;
+                memory[free_block_index].access_counter = 1;
 
             } else { // page was not found and there is not a free block
                 // call replacement algorithm
-                int index_to_replace = replace_inverted_page_table_entry(table_ptr->algorithm, table_ptr, page_table->table_size);
+                int index_to_replace = replace_inverted_page_table_entry(algorithm, table_ptr, page_table->table_size);
                 if (table_ptr->data[index_to_replace].modified) { // page was modified and need to be written on the disk
                     dirty_pages++;
                 }
@@ -131,12 +149,20 @@ int main(int argc, char *argv[]) {
                 table_ptr->data[index_to_replace].last_access_moment = ++access_counter;
                 table_ptr->data[index_to_replace].access_counter = 1;
                 table_ptr->data[index_to_replace].modified = rw == 'W';
+
+                // update the frame attributes
+                memory[index_to_replace].modified = (rw == 'W');
+                memory[index_to_replace].last_access_moment = ++access_counter;
+                memory[index_to_replace].access_counter = 1;
+
+                mem_access++;
             }
         } else {
             page_table_block* block = get_page(page_table, outer_page_addr, second_inner_page_addr, third_inner_page_addr, second_inner_table_offset, third_inner_table_offset);
 
             if (!(*block).valid) { // page was not yet brought to memory
                 page_faults++;
+                mem_access++;
 
                 int ff_index = find_free_frame(memory, total_physical_frames);
                 if (ff_index == -1) { // there is not a single free memory frame
@@ -159,6 +185,7 @@ int main(int argc, char *argv[]) {
 
                     (*block).frame = mem_frame_to_replace; // make the reference to the new frame where the page is allocated
                 } else {
+                    mem_access++;
 
                     // update the frame attributes
                     memory[ff_index].allocated = true;
