@@ -2,14 +2,32 @@
 #include "PageTable.h"
 #include "utils.h"
 #include <stdio.h>
+#include <time.h>
 
 #define LOGS "logs/"
 #define MAX_PATH_LENGTH 64
+#define DEBUG_LOG "debug.log"
+#define ADDR_STR_LEN 50
+
+// Função para escrever no log de debug
+void write_debug_log(FILE* debug_file, const char* message, bool debug_mode) {
+    if (debug_mode) {
+        fprintf(debug_file, "%s\n", "=============================");
+        fprintf(debug_file, "%s\n", message);
+        fprintf(debug_file, "%s\n", "=============================");
+        fflush(debug_file);
+    }
+}
 
 int access_counter = 0; // used in lru aglorithm (global variable)
 
 int main(int argc, char *argv[]) {
-    if (argc != 6) {
+    bool debug_mode = false;
+
+    // Verifica se há argumento debug
+    if (argc == 7 && strcmp(argv[6], "debug") == 0) {
+        debug_mode = true;
+    } else if (argc < 6) {
         printf("Insuficient number of arguments");
         return 1;
     }
@@ -20,6 +38,18 @@ int main(int argc, char *argv[]) {
     unsigned int page_size = atoi(argv[3]);
     unsigned int mem_size = atoi(argv[4]);
     int table_type = atoi(argv[5]);
+
+    // Abre arquivo de debug se necessário
+    FILE* debug_file = NULL;
+    if (debug_mode) {
+        debug_file = fopen(DEBUG_LOG, "w");
+        if (!debug_file) {
+            printf("Erro ao abrir arquivo de debug\n");
+            debug_mode = false;
+        } else {
+            write_debug_log(debug_file, "Iniciando simulação de acessos à memória", true);
+        }
+    }
 
     // variables to be used all over the program
     unsigned int dirty_pages = 0;
@@ -46,6 +76,7 @@ int main(int argc, char *argv[]) {
         printf("Memory allocation failed\n");
         free(page_table);
         free(memory);
+        if (debug_file) fclose(debug_file);
         return 1;
     }
 
@@ -58,7 +89,11 @@ int main(int argc, char *argv[]) {
     int mem_access = 0;
 
     while (fscanf(file, "%x %c", &addr, &rw) != EOF) {
-        // mem_access++;
+        if (debug_mode) {
+            char log_msg[256];
+            snprintf(log_msg, sizeof(log_msg), "Processando acesso: endereço=0x%x, operação=%c", addr, rw);
+            write_debug_log(debug_file, log_msg, true);
+        }
 
         /* ============= Set each page address according to the table type ============= */
         switch (table_type) {
@@ -95,19 +130,39 @@ int main(int argc, char *argv[]) {
             int free_block_index = -1;
             bool page_found = false;
 
+            if (debug_mode) {
+                char log_msg[256];
+                snprintf(log_msg, sizeof(log_msg), "Procurando página %u na tabela invertida", outer_page_addr);
+                write_debug_log(debug_file, log_msg, true);
+            }
+
             // searches for the page or for a free block
             for (size_t i = 0; i < page_table->table_size; i++) {
                 if(table_ptr->data[i].page == outer_page_addr){
                     block_ptr = &table_ptr->data[i];
                     page_found = true;
+                    if (debug_mode) {
+                        char log_msg[256];
+                        snprintf(log_msg, sizeof(log_msg), "Página encontrada no frame %zu", i);
+                        write_debug_log(debug_file, log_msg, true);
+                    }
                     break;
                 } else if (block_ptr == NULL && table_ptr->data[i].page == -1) {
                     block_ptr = &table_ptr->data[i];
                     free_block_index = i;
+                    if (debug_mode) {
+                        char log_msg[256];
+                        snprintf(log_msg, sizeof(log_msg), "Página não encontrada. Espaço livre no frame %zu", i);
+                        write_debug_log(debug_file, log_msg, true);
+                    }
                 }
             }
 
             if(page_found){ // page is in memory
+                if (debug_mode) {
+                    write_debug_log(debug_file, "Hit na tabela invertida - atualizando dados de acesso", true);
+                }
+
                 // Hit: update access moment, modified bit & access counter
                 (*block_ptr).last_access_moment = ++access_counter;
                 (*block_ptr).access_counter++;
@@ -125,6 +180,12 @@ int main(int argc, char *argv[]) {
                 page_faults++;
                 mem_access++;
 
+                if (debug_mode) {
+                    char log_msg[256];
+                    snprintf(log_msg, sizeof(log_msg), "Page fault - alocando página %u no frame livre %d", outer_page_addr, free_block_index);
+                    write_debug_log(debug_file, log_msg, true);
+                }
+
                 // change the page associated to the block and its other attributes
                 table_ptr->data[free_block_index].page = outer_page_addr;
                 table_ptr->data[free_block_index].modified = rw == 'W';
@@ -138,10 +199,24 @@ int main(int argc, char *argv[]) {
                 memory[free_block_index].access_counter = 1;
 
             } else { // page was not found and there is not a free block
+                if (debug_mode) {
+                    write_debug_log(debug_file, "Page fault - chamando algoritmo de substituição", true);
+                }
+
                 // call replacement algorithm
                 int index_to_replace = replace_inverted_page_table_entry(algorithm, table_ptr, page_table->table_size);
+
+                if (debug_mode) {
+                    char log_msg[256];
+                    snprintf(log_msg, sizeof(log_msg), "Algoritmo selecionou frame %d para substituição", index_to_replace);
+                    write_debug_log(debug_file, log_msg, true);
+                }
+
                 if (table_ptr->data[index_to_replace].modified) { // page was modified and need to be written on the disk
                     dirty_pages++;
+                    if (debug_mode) {
+                        write_debug_log(debug_file, "Página substituída estava modificada (dirty)", true);
+                    }
                 }
                 table_ptr->data[index_to_replace].page = outer_page_addr; // replace the page
 
@@ -164,14 +239,33 @@ int main(int argc, char *argv[]) {
                 page_faults++;
                 mem_access++;
 
+                if (debug_mode) {
+                    char log_msg[256];
+                    snprintf(log_msg, sizeof(log_msg), "Page fault - página %u-%u-%u não está na memória", outer_page_addr, second_inner_page_addr, third_inner_page_addr);
+                    write_debug_log(debug_file, log_msg, true);
+                }
+
                 int ff_index = find_free_frame(memory, total_physical_frames);
                 if (ff_index == -1) { // there is not a single free memory frame
+
+                    if (debug_mode) {
+                        write_debug_log(debug_file, "Memória cheia - chamando algoritmo de substituição", true);
+                    }
 
                     // call page replacement algorithm
                     unsigned int mem_frame_to_replace = frame_to_be_replaced(algorithm, memory, total_physical_frames);
 
+                    if (debug_mode) {
+                        char log_msg[256];
+                        snprintf(log_msg, sizeof(log_msg), "Algoritmo selecionou frame %u para substituição", mem_frame_to_replace);
+                        write_debug_log(debug_file, log_msg, true);
+                    }
+
                     if (memory[mem_frame_to_replace].modified) { // page was modified and need to be written on the disk
                         dirty_pages++;
+                        if (debug_mode) {
+                            write_debug_log(debug_file, "Página substituída estava modificada (dirty)", true);
+                        }
                     }
 
                     memory[mem_frame_to_replace].virtual_page->valid = false; // make the old page allocated invalid
@@ -186,6 +280,11 @@ int main(int argc, char *argv[]) {
                     (*block).frame = mem_frame_to_replace; // make the reference to the new frame where the page is allocated
                 } else {
                     mem_access++;
+                    if (debug_mode) {
+                        char log_msg[256];
+                        snprintf(log_msg, sizeof(log_msg), "Alocando página no frame livre %d", ff_index);
+                        write_debug_log(debug_file, log_msg, true);
+                    }
 
                     // update the frame attributes
                     memory[ff_index].allocated = true;
@@ -201,6 +300,12 @@ int main(int argc, char *argv[]) {
                 // block was brought into memory
                 (*block).valid = true;
             } else {
+                if (debug_mode) {
+                    char log_msg[256];
+                    snprintf(log_msg, sizeof(log_msg), "Hit - página %u-%u-%u encontrada no frame %d", outer_page_addr, second_inner_page_addr, third_inner_table_offset, (*block).frame);
+                    write_debug_log(debug_file, log_msg, true);
+                }
+
                 // hit: update access moment, modified bit & number of accesses
                 memory[(*block).frame].last_access_moment = ++access_counter;
                 memory[(*block).frame].access_counter++;
@@ -218,6 +323,13 @@ int main(int argc, char *argv[]) {
     printf("Memory accesses: %d\n", mem_access);
     printf("Page faults: %d\n", page_faults);
     printf("Dirty pages: %d\n", dirty_pages);
+
+    if (debug_mode) {
+        char log_msg[256];
+        snprintf(log_msg, sizeof(log_msg), "Simulação concluída. Acessos: %d, Page Faults: %d, Dirty Pages: %d", mem_access, page_faults, dirty_pages);
+        write_debug_log(debug_file, log_msg, true);
+        fclose(debug_file);
+    }
 
     // free allocated memory
     fclose(file);
